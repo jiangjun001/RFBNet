@@ -44,7 +44,7 @@ class DenseDDCB(nn.Module):
         self.out_channels = out_planes
         self.layer = self._make_layer(block, in_planes, growth_rate, nb_layers, dropRate)
         self.bn1 = nn.BatchNorm2d(in_planes)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu1 = nn.ReLU(inplace=True)
         self.in_planes = int(in_planes+nb_layers*growth_rate)
         self.conv1 = nn.Conv2d(self.inplanes, out_planes, kernel_size=1, stride=1,
                                padding=0, bias=False)
@@ -62,7 +62,7 @@ class DenseDDCB_a(nn.Module):
         self.out_channels = out_planes // 2
         self.layer = self._make_layer(block, in_planes, growth_rate, nb_layers, dropRate)
         self.bn1 = nn.BatchNorm2d(in_planes)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu1 = nn.ReLU(inplace=True)
         self.in_planes = int(in_planes+nb_layers*growth_rate)
         self.conv1 = nn.Conv2d(self.in_planes, out_planes, kernel_size=1, stride=1,
                                padding=0, bias=False)
@@ -73,8 +73,9 @@ class DenseDDCB_a(nn.Module):
             layers.append(block(in_planes+i*growth_rate, growth_rate, dropRate, visual=i+1))
         return nn.Sequential(*layers)
     def forward(self, x):
+        out = self.conv1(self.relu1(self.bn1(self.layer(x))))
         if self.droprate > 0:
-            out = F.dropout(self.conv1(self.relu1(self.bn1(self.layer(x)))), p=self.droprate, inplace=False, training=self.training)
+            out = F.dropout(out, p=self.droprate, inplace=False, training=self.training)
         return F.avg_pool2d(out, 2)
     
 
@@ -298,5 +299,5 @@ def build_net(phase, size=300, num_classes=21):
         return
 
     return DDCBNet(phase, size, *multibox(size, vgg(base[str(size)], 3),
-                                add_extras(size, extras[str(size)], 1024, 3, 12, BottleneckBlock),
+                                add_extras(size, extras[str(size)], 1024, 3, 12, BottleneckBlock, dropRate=0.0),
                                 mbox[str(size)], num_classes), num_classes)  
