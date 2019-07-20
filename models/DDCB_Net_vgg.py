@@ -46,7 +46,7 @@ class DenseDDCB(nn.Module):
         self.bn1 = nn.BatchNorm2d(in_planes)
         self.relu1 = nn.ReLU(inplace=True)
         self.in_planes = int(in_planes+nb_layers*growth_rate)
-        self.conv1 = nn.Conv2d(self.inplanes, out_planes, kernel_size=1, stride=1,
+        self.conv1 = nn.Conv2d(self.in_planes, out_planes, kernel_size=1, stride=1,
                                padding=0, bias=False)
     def _make_layer(self, block, in_planes, growth_rate, nb_layers, dropRate):
         layers = []
@@ -54,11 +54,11 @@ class DenseDDCB(nn.Module):
             layers.append(block(in_planes+i*growth_rate, growth_rate, dropRate, visual=i+1))
         return nn.Sequential(*layers)
     def forward(self, x):
-        return self.relu(self.conv1(self.relu1(self.bn1(self.layer(x)))))
+        return self.relu1(self.conv1(self.relu1(self.bn1(self.layer(x)))))
     
 class DenseDDCB_a(nn.Module):
     def __init__(self, nb_layers, in_planes, out_planes, growth_rate, block, dropRate=0.0):
-        super(DenseDDCB, self).__init__()
+        super(DenseDDCB_a, self).__init__()
         self.out_channels = out_planes // 2
         self.layer = self._make_layer(block, in_planes, growth_rate, nb_layers, dropRate)
         self.bn1 = nn.BatchNorm2d(in_planes)
@@ -232,9 +232,9 @@ def add_extras(size, cfg, i, nb_layers, grow_rate, block, dropRate, batch_norm=F
         layers += [BasicConv(256,128,kernel_size=1,stride=1)]
         layers += [BasicConv(128,256,kernel_size=4,stride=1,padding=1)]
     elif size ==300:
-        layers += [DenseDDCB(nb_laters, in_channels, cfg[0],grow_rate, block, dropRate)]
-        layers += [DenseDDCB_a(nb_laters, cfg[0], cfg[0],grow_rate, block, dropRate)]
-        layers += [DenseDDCB_a(nb_laters, cfg[1], cfg[1],grow_rate, block, dropRate)]
+        layers += [DenseDDCB(nb_layers, in_channels, cfg[0],grow_rate, block, dropRate)]
+        layers += [DenseDDCB_a(nb_layers, cfg[0], cfg[0],grow_rate, block, dropRate)]
+        layers += [DenseDDCB_a(nb_layers, cfg[1], cfg[1],grow_rate, block, dropRate)]
         layers += [BasicConv(cfg[2],128,kernel_size=1,stride=1)]
         layers += [BasicConv(128,cfg[2],kernel_size=3,stride=1)]
         layers += [BasicConv(256,128,kernel_size=1,stride=1)]
