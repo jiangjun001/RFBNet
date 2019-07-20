@@ -25,7 +25,7 @@ class BottleneckBlock(nn.Module):
                                padding=0, bias=False)
         self.bn2 = nn.BatchNorm2d(inter_planes)
         self.conv2 = nn.Conv2d(inter_planes, out_planes, kernel_size=3, stride=1,
-                               padding=1, dilation=visual, bias=False)
+                               padding=visual, dilation=visual, bias=False)
         self.droprate = dropRate
 
     def forward(self, x):
@@ -45,7 +45,8 @@ class DenseDDCB(nn.Module):
         self.layer = self._make_layer(block, in_planes, growth_rate, nb_layers, dropRate)
         self.bn1 = nn.BatchNorm2d(in_planes)
         self.relu = nn.ReLU(inplace=True)
-        self.conv1 = nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=1,
+        self.in_planes = int(in_planes+nb_layers*growth_rate)
+        self.conv1 = nn.Conv2d(self.inplanes, out_planes, kernel_size=1, stride=1,
                                padding=0, bias=False)
     def _make_layer(self, block, in_planes, growth_rate, nb_layers, dropRate):
         layers = []
@@ -62,7 +63,8 @@ class DenseDDCB_a(nn.Module):
         self.layer = self._make_layer(block, in_planes, growth_rate, nb_layers, dropRate)
         self.bn1 = nn.BatchNorm2d(in_planes)
         self.relu = nn.ReLU(inplace=True)
-        self.conv1 = nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=1,
+        self.in_planes = int(in_planes+nb_layers*growth_rate)
+        self.conv1 = nn.Conv2d(self.in_planes, out_planes, kernel_size=1, stride=1,
                                padding=0, bias=False)
         self.droprate = dropRate
     def _make_layer(self, block, in_planes, growth_rate, nb_layers, dropRate):
@@ -295,6 +297,6 @@ def build_net(phase, size=300, num_classes=21):
         print("Error: Sorry only RFBNet300 and RFBNet512 are supported!")
         return
 
-    return RFBNet(phase, size, *multibox(size, vgg(base[str(size)], 3),
+    return DDCBNet(phase, size, *multibox(size, vgg(base[str(size)], 3),
                                 add_extras(size, extras[str(size)], 1024, 3, 12, BottleneckBlock),
                                 mbox[str(size)], num_classes), num_classes)  
