@@ -1,3 +1,13 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.autograd import Variable
+from layers import *
+import torchvision.transforms as transforms
+import torchvision.models as models
+import torch.backends.cudnn as cudnn
+import os
+
 class BasicConv(nn.Module):
 
     def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, dilation=1, groups=1, relu=True, bn=True, bias=False):
@@ -43,9 +53,9 @@ class DenseDDCB(nn.Module):
         super(DenseDDCB, self).__init__()
         self.out_channels = out_planes
         self.layer = self._make_layer(block, in_planes, growth_rate, nb_layers, dropRate)
-        self.bn1 = nn.BatchNorm2d(in_planes)
-        self.relu1 = nn.ReLU(inplace=True)
         self.in_planes = int(in_planes+nb_layers*growth_rate)
+        self.bn1 = nn.BatchNorm2d(self.in_planes)
+        self.relu1 = nn.ReLU(inplace=True)
         self.conv1 = nn.Conv2d(self.in_planes, out_planes, kernel_size=1, stride=1,
                                padding=0, bias=False)
     def _make_layer(self, block, in_planes, growth_rate, nb_layers, dropRate):
@@ -57,14 +67,14 @@ class DenseDDCB(nn.Module):
         return self.relu1(self.conv1(self.relu1(self.bn1(self.layer(x)))))
     
 class DenseDDCB_a(nn.Module):
-    def __init__(self, nb_layers, in_planes, out_planes, growth_rate, block, dropRate=0.0):
+    def __init__(self, nb_layers, in_planes, out_planes, growth_rate, block, dropRate=0.0, stride=1):
         super(DenseDDCB_a, self).__init__()
         self.out_channels = out_planes // 2
         self.layer = self._make_layer(block, in_planes, growth_rate, nb_layers, dropRate)
-        self.bn1 = nn.BatchNorm2d(in_planes)
-        self.relu1 = nn.ReLU(inplace=True)
         self.in_planes = int(in_planes+nb_layers*growth_rate)
-        self.conv1 = nn.Conv2d(self.in_planes, out_planes, kernel_size=1, stride=1,
+        self.bn1 = nn.BatchNorm2d(self.in_planes)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.conv1 = nn.Conv2d(self.in_planes, self.out_channels, kernel_size=1, stride=stride,
                                padding=0, bias=False)
         self.droprate = dropRate
     def _make_layer(self, block, in_planes, growth_rate, nb_layers, dropRate):
@@ -76,7 +86,8 @@ class DenseDDCB_a(nn.Module):
         out = self.conv1(self.relu1(self.bn1(self.layer(x))))
         if self.droprate > 0:
             out = F.dropout(out, p=self.droprate, inplace=False, training=self.training)
-        return F.avg_pool2d(out, 2)
+        out = self.relu1(out)
+        return out
     
 
 
@@ -233,8 +244,8 @@ def add_extras(size, cfg, i, nb_layers, grow_rate, block, dropRate, batch_norm=F
         layers += [BasicConv(128,256,kernel_size=4,stride=1,padding=1)]
     elif size ==300:
         layers += [DenseDDCB(nb_layers, in_channels, cfg[0],grow_rate, block, dropRate)]
-        layers += [DenseDDCB_a(nb_layers, cfg[0], cfg[0],grow_rate, block, dropRate)]
-        layers += [DenseDDCB_a(nb_layers, cfg[1], cfg[1],grow_rate, block, dropRate)]
+        layers += [DenseDDCB_a(nb_layers, cfg[0], cfg[1],grow_rate, block, dropRate, stride=2)]
+        layers += [DenseDDCB_a(nb_layers, cfg[1], cfg[2],grow_rate, block, dropRate, stride=2)]
         layers += [BasicConv(cfg[2],128,kernel_size=1,stride=1)]
         layers += [BasicConv(128,cfg[2],kernel_size=3,stride=1)]
         layers += [BasicConv(256,128,kernel_size=1,stride=1)]
