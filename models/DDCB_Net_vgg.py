@@ -69,7 +69,7 @@ class DenseDDCB(nn.Module):
 class DenseDDCB_a(nn.Module):
     def __init__(self, nb_layers, in_planes, out_planes, growth_rate, block, dropRate=0.0, stride=1):
         super(DenseDDCB_a, self).__init__()
-        self.out_channels = out_planes // 2
+        self.out_channels = out_planes 
         self.layer = self._make_layer(block, in_planes, growth_rate, nb_layers, dropRate)
         self.in_planes = int(in_planes+nb_layers*growth_rate)
         self.bn1 = nn.BatchNorm2d(self.in_planes)
