@@ -42,6 +42,17 @@ class MultiBoxLoss(nn.Module):
         self.negpos_ratio = neg_pos
         self.neg_overlap = neg_overlap
         self.variance = [0.1,0.2]
+      
+    def one_hot_embedding(labels, num_classes):
+    '''Embedding labels to one-hot form.
+    Args:
+      labels: (LongTensor) class labels, sized [N,].
+      num_classes: (int) number of classes.
+    Returns:
+      (tensor) encoded labels, sized [N,#classes].
+    '''
+    y = torch.eye(num_classes)  # [D,D]
+    return y[labels]            # [N,D]
         
     def focal_loss_alt(self, x, y):
         '''Focal loss alternative.
@@ -53,7 +64,7 @@ class MultiBoxLoss(nn.Module):
         '''
         alpha = 0.25
 
-        t = one_hot_embedding(y.data.cpu(), 1+self.num_classes)
+        t = self.one_hot_embedding(y.data.cpu(), 1+self.num_classes)
         t = t[:,1:]
         t = Variable(t).cuda()
 
