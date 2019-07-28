@@ -33,16 +33,36 @@ class BottleneckBlock(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.conv1 = nn.Conv2d(in_planes, inter_planes, kernel_size=1, stride=1,
                                padding=0, bias=False)
+        self.bn1_1 = nn.BatchNorm2d(inter_planes)
+        self.conv1_1 = nn.Conv2d(inter_planes, out_planes, kernel_size=3, stride=1,
+                               padding=(1, 1), dilation=1, bias=False)
+        self.conv1_2 = nn.Conv2d(out_planes, out_planes, kernel_size=3, stride=1,
+                               padding=visual, dilation=visual, bias=False)
+        self.conv1_3 = nn.Conv2d(inter_planes, out_planes, kernel_size=5, stride=1,
+                               padding=(2, 2), dilation=1, bias=False)
+        self.conv1_4 = nn.Conv2d(out_planes, out_planes, kernel_size=3, stride=1,
+                               padding=visual, dilation=visual, bias=False)
         self.bn2 = nn.BatchNorm2d(inter_planes)
+        self.bn2_1 = nn.BatchNorm2d(out_planes)
         self.conv2 = nn.Conv2d(inter_planes, out_planes, kernel_size=3, stride=1,
                                padding=visual, dilation=visual, bias=False)
         self.droprate = dropRate
+        self.visual = visual
 
     def forward(self, x):
         out = self.conv1(self.relu(self.bn1(x)))
+        if self.visual == 2:
+            out = self.conv1_1(self.relu(self.bn1_1(out)))
+        if self.visual == 3:
+            out = self.conv1_3(self.relu(self.bn1_1(out)))
         if self.droprate > 0:
             out = F.dropout(out, p=self.droprate, inplace=False, training=self.training)
-        out = self.conv2(self.relu(self.bn2(out)))
+        if self.visual == 1:
+            out = self.conv2(self.relu(self.bn2(out)))
+        if self.visual == 2:
+            out = self.conv1_2(self.relu(self.bn2_1(out)))
+        if self.visual == 3:
+            out = self.conv1_4(self.relu(self.bn2_1(out)))
         if self.droprate > 0:
             out = F.dropout(out, p=self.droprate, inplace=False, training=self.training)
         return torch.cat([x, out], 1)
