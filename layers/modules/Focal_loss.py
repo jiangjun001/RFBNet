@@ -123,7 +123,7 @@ class MultiBoxLoss(nn.Module):
         pos_neg = conf_t > -1  # exclude ignored anchors
         mask = pos_neg.unsqueeze(2).expand_as(conf_data)
         masked_cls_preds = conf_data[mask].view(-1,self.num_classes)
-        loss_c = self.focal_loss_alt(masked_cls_preds, cls_targets[pos_neg])
+        loss_c = self.focal_loss_alt(masked_cls_preds, conf_t[pos_neg])
 
         # Sum of losses: L(x,c,l,g) = (Lconf(x, c) + αLloc(x,l,g)) / N
 
