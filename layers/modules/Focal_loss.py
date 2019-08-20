@@ -43,7 +43,7 @@ class MultiBoxLoss(nn.Module):
         self.neg_overlap = neg_overlap
         self.variance = [0.1,0.2]
       
-    def one_hot_embedding(labels, num_classes):
+    def one_hot_embedding(self, labels, num_classes):
         '''Embedding labels to one-hot form.
         Args:
              labels: (LongTensor) class labels, sized [N,].
@@ -105,8 +105,8 @@ class MultiBoxLoss(nn.Module):
             loc_t = loc_t.cuda()
             conf_t = conf_t.cuda()
         # wrap targets
-        #loc_t = Variable(loc_t, requires_grad=False)
-        #conf_t = Variable(conf_t,requires_grad=False)
+        loc_t = Variable(loc_t, requires_grad=False)
+        conf_t = Variable(conf_t,requires_grad=False)
 
         pos = conf_t > 0
 
@@ -120,6 +120,7 @@ class MultiBoxLoss(nn.Module):
         ################################################################
         # cls_loss = FocalLoss(loc_preds, loc_targets)
         ################################################################
+        num_pos = pos.long().sum(1,keepdim=True)
         pos_neg = conf_t > -1  # exclude ignored anchors
         mask = pos_neg.unsqueeze(2).expand_as(conf_data)
         masked_cls_preds = conf_data[mask].view(-1,self.num_classes)
