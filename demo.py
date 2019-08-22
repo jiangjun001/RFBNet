@@ -210,5 +210,8 @@ if __name__ == '__main__':
                                                                     int(pt[3])), COLORS[i % 3], 2)
                     cv2.putText(image, labelmap[class_id], (int(pt[0]), int(pt[1])), FONT,
                                 0.5, (255, 255, 255), 2)
+                    cv2.putText(image, '{label}: {score:.2f}'.format(label=labelmap[class_id], 
+                                score=class_collection[i,-1]), (int(pt[0]), int(pt[1])), FONT, 0.5, (255, 255, 255), 
+                                2)FONT, 0.5, (255, 255, 255), 2)                                           
     cv2.imshow('result',image)
     cv2.waitKey()
