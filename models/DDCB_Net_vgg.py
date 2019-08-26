@@ -260,7 +260,7 @@ def add_extras(size, cfg, i, nb_layers, grow_rate, block, dropRate, batch_norm=F
     in_channels = i
     flag = False
     if size == 512:
-        layers += [DenceDDCB(nb_layers, in_channels, cfg[0],grow_rate, block, dropRate)]
+        layers += [DenseDDCB(nb_layers, in_channels, cfg[0],grow_rate, block, dropRate)]
         layers += [DenseDDCB_a(nb_layers, cfg[0], cfg[1],grow_rate, block, dropRate, stride=2)]
         layers += [DenseDDCB_a(nb_layers, cfg[1], cfg[2],grow_rate, block, dropRate, stride=2)]
         layers += [DenseDDCB_a(nb_layers, cfg[2], cfg[3],grow_rate, block, dropRate, stride=2)]
