@@ -63,17 +63,17 @@ class MultiBoxLoss(nn.Module):
           (tensor) focal loss.
         '''
         alpha = 0.25
+        gamma = 2
 
-        t = self.one_hot_embedding(y.data.cpu(), 1+self.num_classes)
-        t = t[:,1:]
+        t = self.one_hot_embedding(y.data.cpu(), self.num_classes)
         t = Variable(t).cuda()
 
-        xt = x*(2*t-1)  # xt = x if t > 0 else -x
-        pt = (2*xt+1).sigmoid()
-
-        w = alpha*t + (1-alpha)*(1-t)
-        loss = -w*pt.log() / 2
-        return loss.sum()
+        logit = F.softmax(x)
+        logit = logit.clamp(1e-7, 1.-1e-7)
+        conf_loss_tmp = -1 * t.float() * torch.log(logit)
+        conf_loss_tmp = alpha * conf_loss_tmp * (1-logit)**gamma
+        conf_loss = conf_loss_tmp.sum()
+        return conf_loss
 
     def forward(self, predictions, priors, targets):
         """Multibox Loss
