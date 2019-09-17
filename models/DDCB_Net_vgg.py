@@ -247,11 +247,47 @@ def vgg(cfg, i, batch_norm=False):
                nn.ReLU(inplace=True), conv7, nn.ReLU(inplace=True)]
     return layers
 
+def make_layers(block, inplanes, planes, blocks, stride=1):
+    downsample = None
+    if stride != 1 or inplanes != planes * block.expansion:
+        downsample = nn.Sequential(
+            nn.Conv2d(inplanes, planes * block.expansion,
+                      kernel_size=1, stride=stride, bias=False),
+            nn.BatchNorm2d(planes * block.expansion),
+        )
+    layers = []
+    bbl=block(inplanes, planes, stride, downsample)
+    bbl.out_channels=planes*block.expansion
+    layers.append(bbl)
+    
+    inplanes = planes * block.expansion
+    for i in range(1, blocks):
+        bbl=block(inplanes, planes)
+        bbl.out_channels=planes*block.expansion
+        layers.append(bbl)
+    return layers
+
+def resnet(cfg,in_channel=3):
+    layers = []
+    layers += [nn.Conv2d(in_channel, 64, kernel_size=7, stride=2, padding=3,bias=False),
+               nn.BatchNorm2d(64),
+               nn.ReLU(inplace=True),
+               nn.MaxPool2d(kernel_size=3, stride=2, padding=1)]
+    block= torchvision.models.resnet.Bottleneck
+    layers += make_layers(block,64,64, cfg[0])
+    layers += make_layers(block,64*block.expansion,128,cfg[1], stride=2)
+    layers += make_layers(block,128*block.expansion,256,cfg[2], stride=2)
+    layers += make_layers(block,256*block.expansion,512,cfg[3], stride=2)
+    #layers += [nn.AvgPool2d(7, stride=1)]
+    return layers
+
+
 base = {
-    '300': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'C', 512, 512, 512, 'M',
+    'vgg_300': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'C', 512, 512, 512, 'M',
             512, 512, 512],
-    '512': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'C', 512, 512, 512, 'M',
+    'vgg_512': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'C', 512, 512, 512, 'M',
             512, 512, 512],
+    'resnet-50':[3, 4, 6, 3],
 }
     
 def add_extras(size, cfg, i, nb_layers, grow_rate, block, dropRate, batch_norm=False):
@@ -326,14 +362,18 @@ mbox = {
 }
 
 
-def build_net(phase, size=300, num_classes=21):
+def build_net(phase, model, size=300, num_classes=21):
     if phase != "test" and phase != "train":
         print("Error: Phase not recognized")
         return
     if size != 300 and size != 512:
         print("Error: Sorry only RFBNet300 and RFBNet512 are supported!")
         return
-
-    return DDCBNet(phase, size, *multibox(size, vgg(base[str(size)], 3),
-                                add_extras(size, extras[str(size)], 1024, 3, 12, BottleneckBlock, dropRate=0.0),
-                                mbox[str(size)], num_classes), num_classes)  
+    if mode == "vgg_300" or mode =="vgg_512":
+        return DDCBNet(phase, size, *multibox(size, vgg(base[model], 3),
+                                   add_extras(size, extras[str(size)], 1024, 3, 12, BottleneckBlock, dropRate=0.0),
+                                   mbox[str(size)], num_classes), num_classes)
+    else:
+        return DDCBNet(phase, size, *multibox(size, resnet(base[model], 3),
+                                   add_extras(size, extras[str(size)], 1024, 3, 12, BottleneckBlock, dropRate=0.0),
+                                   mbox[str(size)], num_classes), num_classes)
