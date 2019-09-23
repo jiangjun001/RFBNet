@@ -24,7 +24,45 @@ class BasicConv(nn.Module):
         if self.relu is not None:
             x = self.relu(x)
         return x
+    
+class BottleneckBlock(nn.Module):
+    def __init__(self, in_planes, out_planes, dropRate=0.0, visual=1):
+        super(BottleneckBlock, self).__init__()
+        inter_planes = out_planes * 4
+        self.bn1 = nn.BatchNorm2d(in_planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv1 = nn.Conv2d(in_planes, inter_planes, kernel_size=1, stride=1,
+                               padding=0, bias=False)
+        self.bn2 = nn.BatchNorm2d(inter_planes)
+        self.conv2 = nn.Conv2d(inter_planes, out_planes, kernel_size=3, stride=1,
+                               padding=visual, dilation=visual, bias=False)
+        self.droprate = dropRate
+    def forward(self, x):
+        out = self.conv1(self.relu(self.bn1(x)))
+        if self.droprate > 0:
+            out = F.dropout(out, p=self.droprate, inplace=False, training=self.training)
+        out = self.conv2(self.relu(self.bn2(out)))
+        if self.droprate > 0:
+            out = F.dropout(out, p=self.droprate, inplace=False, training=self.training)
+        return torch.cat([x, out], 1)
 
+class DenseDDCB(nn.Module):
+    def __init__(self, nb_layers, in_planes, out_planes, growth_rate, block, dropRate=0.0):
+        super(DenseDDCB, self).__init__()
+        self.out_channels = out_planes
+        self.layer = self._make_layer(block, in_planes, growth_rate, nb_layers, dropRate)
+        self.in_planes = int(in_planes+nb_layers*growth_rate)
+        self.bn1 = nn.BatchNorm2d(self.in_planes)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.conv1 = nn.Conv2d(self.in_planes, out_planes, kernel_size=1, stride=1,
+                               padding=0, bias=False)
+    def _make_layer(self, block, in_planes, growth_rate, nb_layers, dropRate):
+        layers = []
+        for i in range(nb_layers):
+            layers.append(block(in_planes+i*growth_rate, growth_rate, dropRate, visual=i+1))
+        return nn.Sequential(*layers)
+    def forward(self, x):
+        return self.relu1(self.conv1(self.relu1(self.bn1(self.layer(x)))))
 
 
 class DDCBNet(nn.Module):
@@ -59,10 +97,14 @@ class DDCBNet(nn.Module):
         # vgg network
         self.base = nn.ModuleList(base)
         # conv_4
-        self.Norm = DenseDDCB(3, 512, 512, 12, block, dropRate=0.0)
+        self.Norm_1 = DenseDDCB(3, 768, 512, 12, block, dropRate=0.0)
+        self.Norm_2 = DenseDDCB(3, 768, 1024, 12, block, dropRate=0.0)
+        self.Norm_3 = DenseDDCB(3, 384, 512, 12, block, dropRate=0.0)
         self.extras = nn.ModuleList(extras)
         self.loc = nn.ModuleList(head[0])
         self.conf = nn.ModuleList(head[1])
+        self.conv1 = BasicConv(cfg[0], cfg[0]//2, kernel_size=3, stride=1, padding=1)
+        self.conv2 = BasicConv(cfg[1], cfg[1]//2, kernel_size=1, stride=1)
         if self.phase == 'test':
             self.softmax = nn.Softmax(dim=-1)
 
@@ -89,21 +131,31 @@ class DDCBNet(nn.Module):
 
         # apply vgg up to conv4_3 relu
         for k in range(23):
-            x = self.base[k](x)
-
-        s = self.Norm(x)
-        sources.append(s)
-
+            x1 = self.base[k](x)
+           
         # apply vgg up to fc7
         for k in range(23, len(self.base)):
-            x = self.base[k](x)
-
+            x2 = self.base[k](x)
+            
+        s = torch.cat(self.conv1(x1), F.interpolate(self.conv2(x2), scale_factor=2, mode='nearest'))
+        s = self.Norm_1(s)
+        sources.append(s)
         # apply extra layers and cache source layer outputs
         for k, v in enumerate(self.extras):
             x = v(x)
-            if k < self.indicator or k%2 ==0:
+            if k == 1:
+                x3 = x
+                s = torch.cat(self.conv1(x2), F.interpolate(self.conv2(x3), size=[19, 19], mode='nearest'))
+                s = self.Norm_2(s)
+                sources.append(s)
+            if k == 3:
+                x4 = x
+                s = torch.cat(self.conv1(x3), F.interpolate(self.conv2(x4), scale_factor=2, mode='nearest'))
+                s = self.Norm_3(s)
+                sources.append(s)
+            if k > 2 and k%2 != 0:
                 sources.append(x)
-
+ 
         # apply multibox head to source layers
         for (x, l, c) in zip(sources, self.loc, self.conf):
             loc.append(l(x).permute(0, 2, 3, 1).contiguous())
@@ -174,15 +226,15 @@ def add_extras(size, cfg, i, batch_norm=False):
     for k, v in enumerate(cfg):
         if in_channels != 'S':
             if v == 'S':
-                layers += [nn.Conv2d(in_channels, cfg[k + 1],
+                layers += [BasicConv(in_channels, cfg[k + 1],
                            kernel_size=(1, 3)[flag], stride=2, padding=1)]
             else:
-                layers += [nn.Conv2d(in_channels, v, kernel_size=(1, 3)[flag])]
+                layers += [BasicConv(in_channels, v, kernel_size=(1, 3)[flag])]
             flag = not flag
         in_channels = v
     # SSD512 need add one more Conv layer(Conv12_2)
     if size == 512:
-        layers += [nn.Conv2d(in_channels, 256, kernel_size=4, padding=1)]
+        layers += [BasicConv(in_channels, 256, kernel_size=4, padding=1)]
     return layers
 
 extras = {
@@ -193,7 +245,7 @@ extras = {
 def multibox(size, vgg, extra_layers, cfg, num_classes):
     loc_layers = []
     conf_layers = []
-    vgg_source = [-2]
+    vgg_source = [-2,-1]
     for k, v in enumerate(vgg_source):
         if k == 0:
             loc_layers += [nn.Conv2d(512,
@@ -201,11 +253,15 @@ def multibox(size, vgg, extra_layers, cfg, num_classes):
             conf_layers +=[nn.Conv2d(512,
                                  cfg[k] * num_classes, kernel_size=3, padding=1)]
         else:
-            loc_layers += [nn.Conv2d(vgg[v].out_channels,
+            loc_layers += [nn.Conv2d(1024,
                                  cfg[k] * 4, kernel_size=3, padding=1)]
-            conf_layers += [nn.Conv2d(vgg[v].out_channels,
+            conf_layers += [nn.Conv2d(1024,
                         cfg[k] * num_classes, kernel_size=3, padding=1)]
-    i = 1
+            loc_layers += [nn.Conv2d(512,
+                                 cfg[k] * 4, kernel_size=3, padding=1)]
+            conf_layers += [nn.Conv2d(512,
+                        cfg[k] * num_classes, kernel_size=3, padding=1)]
+    i = 2
     indicator = 0
     if size == 300:
         indicator = 3
@@ -216,7 +272,7 @@ def multibox(size, vgg, extra_layers, cfg, num_classes):
         return
 
     for k, v in enumerate(extra_layers):
-        if k < indicator or k%2== 0:
+        if k >= 3 and k%2 != 0:
             loc_layers += [nn.Conv2d(v.out_channels, cfg[i]
                                  * 4, kernel_size=3, padding=1)]
             conf_layers += [nn.Conv2d(v.out_channels, cfg[i]
