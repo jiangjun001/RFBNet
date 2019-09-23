@@ -103,8 +103,12 @@ class DDCBNet(nn.Module):
         self.extras = nn.ModuleList(extras)
         self.loc = nn.ModuleList(head[0])
         self.conf = nn.ModuleList(head[1])
-        self.conv1 = BasicConv(cfg[0], cfg[0]//2, kernel_size=3, stride=1, padding=1)
-        self.conv2 = BasicConv(cfg[1], cfg[1]//2, kernel_size=1, stride=1)
+        self.conv1_1 = BasicConv(512, 256, kernel_size=3, stride=1, padding=1)
+        self.conv2_1 = BasicConv(1024, 512, kernel_size=1, stride=1)
+        self.conv1_2 = BasicConv(1024, 512, kernel_size=3, stride=1, padding=1)
+        self.conv2_2 = BasicConv(512, 256, kernel_size=1, stride=1)
+        self.conv1_3 = BasicConv(512, 256, kernel_size=3, stride=1, padding=1)
+        self.conv2_3 = BasicConv(256, 128, kernel_size=1, stride=1)
         if self.phase == 'test':
             self.softmax = nn.Softmax(dim=-1)
 
@@ -137,7 +141,7 @@ class DDCBNet(nn.Module):
         for k in range(23, len(self.base)):
             x2 = self.base[k](x)
             
-        s = torch.cat(self.conv1(x1), F.interpolate(self.conv2(x2), scale_factor=2, mode='nearest'))
+        s = torch.cat(self.conv1_1(x1), F.interpolate(self.conv2_1(x2), scale_factor=2, mode='nearest'))
         s = self.Norm_1(s)
         sources.append(s)
         # apply extra layers and cache source layer outputs
@@ -145,12 +149,12 @@ class DDCBNet(nn.Module):
             x = v(x)
             if k == 1:
                 x3 = x
-                s = torch.cat(self.conv1(x2), F.interpolate(self.conv2(x3), size=[19, 19], mode='nearest'))
+                s = torch.cat(self.conv1_2(x2), F.interpolate(self.conv2_2(x3), size=[19, 19], mode='nearest'))
                 s = self.Norm_2(s)
                 sources.append(s)
             if k == 3:
                 x4 = x
-                s = torch.cat(self.conv1(x3), F.interpolate(self.conv2(x4), scale_factor=2, mode='nearest'))
+                s = torch.cat(self.conv1_3(x3), F.interpolate(self.conv2_3(x4), scale_factor=2, mode='nearest'))
                 s = self.Norm_3(s)
                 sources.append(s)
             if k > 2 and k%2 != 0:
