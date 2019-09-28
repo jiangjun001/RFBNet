@@ -135,13 +135,13 @@ class DDCBNet(nn.Module):
 
         # apply vgg up to conv4_3 relu
         for k in range(23):
-            x1 = self.base[k](x)
-           
+            x = self.base[k](x)
+        x1 = x   
         # apply vgg up to fc7
         for k in range(23, len(self.base)):
-            x2 = self.base[k](x)
-            
-        s = torch.cat(self.conv1_1(x1), F.interpolate(self.conv2_1(x2), scale_factor=2, mode='nearest'))
+            x = self.base[k](x)
+        x2 = x    
+        s = torch.cat([self.conv1_1(x1), F.interpolate(self.conv2_1(x2), scale_factor=2, mode='nearest')], 1)
         s = self.Norm_1(s)
         sources.append(s)
         # apply extra layers and cache source layer outputs
@@ -149,12 +149,12 @@ class DDCBNet(nn.Module):
             x = v(x)
             if k == 1:
                 x3 = x
-                s = torch.cat(self.conv1_2(x2), F.interpolate(self.conv2_2(x3), size=[19, 19], mode='nearest'))
+                s = torch.cat([self.conv1_2(x2), F.interpolate(self.conv2_2(x3), size=[19, 19], mode='nearest')], 1)
                 s = self.Norm_2(s)
                 sources.append(s)
             if k == 3:
                 x4 = x
-                s = torch.cat(self.conv1_3(x3), F.interpolate(self.conv2_3(x4), scale_factor=2, mode='nearest'))
+                s = torch.cat([self.conv1_3(x3), F.interpolate(self.conv2_3(x4), scale_factor=2, mode='nearest')], 1)
                 s = self.Norm_3(s)
                 sources.append(s)
             if k > 2 and k%2 != 0:
@@ -249,23 +249,24 @@ extras = {
 def multibox(size, vgg, extra_layers, cfg, num_classes):
     loc_layers = []
     conf_layers = []
-    vgg_source = [-2,-1]
+    vgg_source = [-3, -2, -1]
     for k, v in enumerate(vgg_source):
         if k == 0:
             loc_layers += [nn.Conv2d(512,
                                  cfg[k] * 4, kernel_size=3, padding=1)]
             conf_layers +=[nn.Conv2d(512,
                                  cfg[k] * num_classes, kernel_size=3, padding=1)]
-        else:
+        if k == 1:
             loc_layers += [nn.Conv2d(1024,
                                  cfg[k] * 4, kernel_size=3, padding=1)]
             conf_layers += [nn.Conv2d(1024,
                         cfg[k] * num_classes, kernel_size=3, padding=1)]
+        if k == 2:
             loc_layers += [nn.Conv2d(512,
                                  cfg[k] * 4, kernel_size=3, padding=1)]
             conf_layers += [nn.Conv2d(512,
                         cfg[k] * num_classes, kernel_size=3, padding=1)]
-    i = 2
+    i = 3
     indicator = 0
     if size == 300:
         indicator = 3
@@ -297,6 +298,6 @@ def build_net(phase, size=300, num_classes=21):
         print("Error: Sorry only RFBNet300 and RFBNet512 are supported!")
         return
 
-    return RFBNet(phase, size, *multibox(size, vgg(base[str(size)], 3),
+    return DDCBNet(phase, size, *multibox(size, vgg(base[str(size)], 3),
                                 add_extras(size, extras[str(size)], 1024),
-                                mbox[str(size)], num_classes), num_classes)  
+                  mbox[str(size)], num_classes), num_classes) 
