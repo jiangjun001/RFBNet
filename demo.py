@@ -153,7 +153,7 @@ if __name__ == '__main__':
     # load net
     img_dim = 300
     num_classes = 21
-    net = build_net('test', num_classes)  # initialize detector
+    net = build_net('test', img_dim, num_classes)  # initialize detector
     state_dict = torch.load(args.trained_model, map_location='cpu')
     # create new OrderedDict that does not contain `module.`
 
@@ -212,6 +212,6 @@ if __name__ == '__main__':
                                 0.5, (255, 255, 255), 2)
                     cv2.putText(image, '{label}: {score:.2f}'.format(label=labelmap[class_id], 
                                 score=class_collection[i,-1]), (int(pt[0]), int(pt[1])), FONT, 0.5, (255, 255, 255), 
-                                2)FONT, 0.5, (255, 255, 255), 2)                                           
+                                2)                                           
     cv2.imshow('result',image)
     cv2.waitKey()
